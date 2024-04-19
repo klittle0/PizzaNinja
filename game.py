@@ -115,8 +115,36 @@ class Game:
                                                 num_hands=2)
         self.detector = HandLandmarker.create_from_options(options)
 
-    def draw_hand_landmarks(self):
-        return 
+        # Load video
+        self.video = cv2.VideoCapture(0)
+
+    def draw_hand_landmarks(self, image, detection_result):
+        """
+        Draws all the landmarks on the hand
+        Args:
+            image (Image): Image to draw on
+            detection_result (HandLandmarkerResult): HandLandmarker detection results
+        """
+        # Get a list of the landmarks
+        hand_landmarks_list = detection_result.hand_landmarks
+        
+        # Loop through the detected hands to visualize each landmark 
+        for idx in range(len(hand_landmarks_list)):
+            hand_landmarks = hand_landmarks_list[idx]
+
+            # Save the landmarks into a NormalizedLandmarkList -- normalizing the landmarks 
+            hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+            hand_landmarks_proto.landmark.extend([
+            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks
+            ])
+
+            # Draw the landmarks on the hand
+            DrawingUtil.draw_landmarks(image,
+                                       hand_landmarks_proto,
+                                       solutions.hands.HAND_CONNECTIONS,
+                                       solutions.drawing_styles.get_default_hand_landmarks_style(),
+                                       solutions.drawing_styles.get_default_hand_connections_style())
+
     
     def draw_start_points(self):
         # Depending on the desired # of slices, draw start/end points around the pizza for each slice 
@@ -131,4 +159,42 @@ class Game:
     def draw_slice(self):
         return
     
+    # Main game loop 
+    def run(self): 
+        """
+        Main game loop. Runs until the 
+        user presses "q".
+        """  
+        # How to do this without actually opening the video? 
+        while self.video.isOpened():
+            # Get the current frame
+            frame = self.video.read()[0]
+
+            # Convert it to an RGB image
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # the image comes mirrored - flip it 
+            image = cv2.flip(image, 0)
+
+            # Convert the image to a readable format and find the hands
+            to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+            results = self.detector.detect(to_detect)
+
+            # Draw the hand landmarks
+            # Do I need this??
+            self.draw_hand_landmarks(image, results)
+
+            # Change the color of the frame back
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            cv2.imshow('Hand Tracking', image)
+
+
+        self.video.release()
+        cv2.destroyAllWindows()
+
+
     
+    
+if __name__ == "__main__":        
+    g = Game()
+    g.run()
