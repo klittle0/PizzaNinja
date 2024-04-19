@@ -79,6 +79,7 @@ class Pizza:
         self.x = 1000
         self.y = 400
         self.is_on_screen = False
+        self.slices = 0 
 
     def appear(self): 
         # TODO
@@ -89,7 +90,6 @@ class Pizza:
         ## if the customer approves the pizza, put it in a box 
         ## slide it away w/ the customer 
         return
-
 
     def draw(self): 
         # TODO 
@@ -115,5 +115,20 @@ class Game:
                                                 num_hands=2)
         self.detector = HandLandmarker.create_from_options(options)
 
-    def draw_hand_landmarks():
+    def draw_hand_landmarks(self):
         return 
+    
+    def draw_start_points(self):
+        # Depending on the desired # of slices, draw start/end points around the pizza for each slice 
+        return 
+
+    # Identifies hand motion/change in the location of the index finger 
+    def check_for_slice(self):
+        return
+        # tallies the slice counter of the current pizza object
+    
+    # draws a slice on the pizza
+    def draw_slice(self):
+        return
+    
+    
