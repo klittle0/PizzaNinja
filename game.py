@@ -116,7 +116,7 @@ class Game:
         self.detector = HandLandmarker.create_from_options(options)
 
         # Load video
-        self.video = cv2.VideoCapture(0)
+        self.video = cv2.VideoCapture(1)
 
     def draw_hand_landmarks(self, image, detection_result):
         """
@@ -168,24 +168,25 @@ class Game:
         # How to do this without actually opening the video? 
         while self.video.isOpened():
             # Get the current frame
-            frame = self.video.read()[1]
+            frame = self.video.read()[0]
+            # cv2.imshow("", y.astype('float32'))
 
             # Convert it to an RGB image
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(frame.astype('float32'), cv2.COLOR_BGR2RGB)
 
-            # the image comes mirrored - flip it 
-            image = cv2.flip(image, 1)
+            # # the image comes mirrored - flip it 
+            # image = cv2.flip(image, 1)
 
-            # Convert the image to a readable format and find the hands
-            to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
-            results = self.detector.detect(to_detect)
+            # # Convert the image to a readable format and find the hands
+            # to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+            # results = self.detector.detect(to_detect)
 
-            # Draw the hand landmarks
-            # Do I need this??
-            self.draw_hand_landmarks(image, results)
+            # # Draw the hand landmarks
+            # # Do I need this??
+            # self.draw_hand_landmarks(image, results)
 
-            # Change the color of the frame back
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # # Change the color of the frame back
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cv2.imshow('Hand Tracking', image)
 
             # Break the loop if the user presses 'q'
