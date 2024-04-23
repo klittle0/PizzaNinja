@@ -168,13 +168,13 @@ class Game:
         # How to do this without actually opening the video? 
         while self.video.isOpened():
             # Get the current frame
-            frame = self.video.read()[0]
+            frame = self.video.read()[1]
 
             # Convert it to an RGB image
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             # the image comes mirrored - flip it 
-            image = cv2.flip(image, 0)
+            image = cv2.flip(image, 1)
 
             # Convert the image to a readable format and find the hands
             to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
@@ -188,11 +188,12 @@ class Game:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cv2.imshow('Hand Tracking', image)
 
+            # Break the loop if the user presses 'q'
+            if cv2.waitKey(50) & 0xFF == ord('q'):
+                break
 
         self.video.release()
         cv2.destroyAllWindows()
-
-
     
     
 if __name__ == "__main__":        
