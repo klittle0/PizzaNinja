@@ -11,6 +11,7 @@ from mediapipe.framework.formats import landmark_pb2
 import cv2
 import random
 import time
+import math
 import pygame 
 
 
@@ -18,9 +19,11 @@ import pygame
 # GENERATE A WINDOW
 
 RED = (255, 0, 0)
+BLACK = (0, 0, 0)
 ANIMATION_TIME = 2
-WIDTH = 2000
-HEIGHT = 1000
+WIDTH = 1200
+HEIGHT = 800
+PIZZA_RADIUS = 225
 
 # Library Constants
 BaseOptions = mp.tasks.BaseOptions
@@ -30,35 +33,39 @@ HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 DrawingUtil = mp.solutions.drawing_utils
 
-class Customer: 
+class Customer(pygame.sprite.Sprite): 
     def __init__(self, difficulty):
+        # is this line necessary? 
+        super().__init__()
         self.is_on_screen = False
         self.num_slices = random.randint(1, 4) * 2
         # the instant when the customer is created
-        self.appear_time = time.time()
+        self.appear_time = None
         # When the customer has been waiting a long time, set to true. 
         self.is_mad = False
         self.difficulty = difficulty
         # CHANGE THIS to be neg SO THE character spawns off screen 
         # IS THIS POSSIBLE? 
-        self.x_pos = 0
-        self.y_pos = 200
-        self.normal_image = cv2.imread('data/character.png', -1)
-        
-
+        self.normal_image = pygame.image.load('data/character.png')
+        self.x = -self.normal_image.get_width()
+        # the self.y should change depending on the customer's position in line. OR: an integer should be passed into their draw method and they 
+        # are drawn at integer * self.y  
+        self.y = 120
         ## The customer needs a couple dif. potential graphics. One for normal mode, another for when they are mad 
 
     ## slides the customer onto screen by shifting x coordinate
     def appear(self): 
-        if time.time() - self.appear_time < ANIMATION_TIME:
-            self.x_pos += 12
-            
+        if self.appear_time == None: 
+            self.appear_time = time.time()
 
+        if time.time() - self.appear_time < ANIMATION_TIME:
+            self.x += 8
+            
     def leave(self):
         # TODO 
         disappear_start = time.time()
-        if self.x_pos > -150: 
-            self.x_pos += -2
+        if self.x > -150: 
+            self.x += -2
         ## add code that removes the player from the screen
         return
 
@@ -83,82 +90,76 @@ class Customer:
         if time.time() - self.appear_time > thres: 
             self.is_mad = True
 
-    def draw(self, image):
-        # TODO 
+    def draw(self, screen):
         if self.is_mad: 
-            # draw image[1], aka the mad image
-            return
+            # adjust for mad image
+            screen.blit(self.normal_image, (self.x, self.y))
         else: 
-            # Remove alpha channel from normal_image if it exists 
-            # I used ChatGPT to debug this if statement 
-            if self.normal_image.shape[2] == 4:
-            # If the normal image has an alpha channel, apply transparency
-                alpha_s = self.normal_image[:, :, 3] / 255.0
-                alpha_l = 1.0 - alpha_s
-
-                for c in range(0, 3):
-                    image[self.y_pos:self.y_pos + self.normal_image.shape[0], self.x_pos:self.x_pos + self.normal_image.shape[1], c] = (alpha_s * self.normal_image[:, :, c] +
-                                                    alpha_l * image[self.y_pos:self.y_pos + self.normal_image.shape[0], self.x_pos:self.x_pos + self.normal_image.shape[1], c])
-            else:
-            # Draw the customer image onto the frame
-                image[self.y_pos:self.y_pos + self.normal_image.shape[0], self.x_pos:self.x_pos + self.normal_image.shape[1]] = self.normal_image
-        return image
+            screen.blit(self.normal_image, (self.x, self.y))
     
+
+
 
 class Pizza(pygame.sprite.Sprite): 
     def __init__(self): 
         # is this line necessary? 
         super().__init__()
-        # Q: I HAD TO COLOR CORRECT AWAY FROM BLUE, BUT AS A RESULT, IT MAKES THE TRANSPARENT PARTS BLACK...??
-        self.image = cv2.cvtColor(cv2.imread('data/pizza.png', -1), cv2.COLOR_BGR2RGB)
-        self.x_pos = WIDTH / 2 - self.image.shape[1] / 2
-        self.y_pos = HEIGHT / 2 + self.image.shape[0] / 2
+        self.pizza_image = pygame.image.load('data/pizza.png')
+        self.box_image = pygame.image.load('data/pizza_box.png')
+        self.x = WIDTH / 2 - self.pizza_image.get_width() / 2
+        self.y = 800
+        self.final_y = HEIGHT / 2 - self.pizza_image.get_height() / 2
         self.is_on_screen = False
-        self.slices = 0 
-        self.appear_time = time.time()
+        self.slices_complete = 0 
+        self.appear_time = None
+        self.is_done = False
 
     def appear(self): 
-        if time.time() - self.appear_time < ANIMATION_TIME:
-            self.y_pos -= 15
+        if self.appear_time == None: 
+            self.appear_time = time.time()
 
-    def box(self):
-        # TODO 
-        ## if the customer approves the pizza, put it in a box 
-        ## slide it away w/ the customer 
-        return
+        if time.time() - self.appear_time < ANIMATION_TIME and self.y -40 >= self.final_y:
+            self.y -= 40
+        else: 
+            if self.y != self.final_y:
+                self.y = self.final_y
+            self.is_on_screen = True
 
-    # image no longer needs to be a parameter
-    def draw(self, image, screen): 
-        # This is for the pygame version of the code: 
-        screen.blit(self.image, self.x_pos, self.y_pos)
+    # Checks to see if pizza has been cut into right # of slices
+    def check_is_done(self, customer):
+        if self.slices_complete == customer.num_slices: 
+            self.is_done = True
+        return self.is_done
 
+    # THIS DOESN'T WORK. THE METHOD IS REACHED, BUT SELF.Y DOESN'T CHANGE!!
+    def disappear(self):
+        print("Disappearing")
+        print(self.y)
+        # is this a magic number? do I need to replace? 
+        self.y = 800
 
-        # Remove alpha channel from normal_image if it exists 
-        # I used ChatGPT to debug this if statement 
-        # IMAGE APPEARS BLUE!!
-        if self.image.shape[2] == 4:
-        # If the normal image has an alpha channel, apply transparency
-            alpha_s = self.image[:, :, 3] / 255.0
-            alpha_l = 1.0 - alpha_s
-
-            for c in range(0, 3):
-                image[self.y_pos:self.y_pos + self.image.shape[0], self.x_pos:self.x_pos + self.image.shape[1], c] = (alpha_s * self.image[:, :, c] +
-                                                alpha_l * image[self.y_pos:self.y_pos + self.image.shape[0], self.x_pos:self.x_pos + self.image.shape[1], c])
+    def draw(self, screen): 
+        if not self.is_done:
+            screen.blit(self.pizza_image, (self.x, self.y))
+        # Draws the pizza in a box if it has been completed
         else:
-        # Draw the customer image onto the frame
-            image[self.y_pos:self.y_pos + self.image.shape[0], self.x_pos:self.x_pos + self.image.shape[1]] = self.image
-        return image
+            screen.blit(self.box_image, (self.x, self.y))
+
+
+
 
 class Game: 
     def __init__(self):
         self.difficulty = 1 
         self.score = 0
         self.is_slicing = False
-        # there only need to be 2 pizzas at one time. I need to treat this like a queue 
-        self.pizzas = []
-        self.pizzas.append(Pizza())
-        self.pizzas.append(Pizza())
+        # there only needs to be one pizza. As soon as the customer approves the order, the pizza is "boxed", aka it disappears
+        #and the box slides away at the same time as the pizza returns 
+        self.pizza = Pizza()
         self.starting_points = []
+        self.star_coor = (0, 0)
+        self.complete_slices = []
+        self.current_point = None
 
         pygame.init()
 
@@ -168,6 +169,9 @@ class Game:
         # generate random customer, put them in the list, then as soon as they're off screen, remove them from list. 
         self.customers = []
         self.customers.append(Customer(self.difficulty))
+
+        #finds the starting points on pizza depending on the current customer
+        self.find_start_points(self.customers[0])
 
         # Create the hand detector
         # Sourced from Ms. Namasivayam's code in the finger tracking game 
@@ -180,12 +184,8 @@ class Game:
         self.video = cv2.VideoCapture(1)
 
     # Draw a star on the pointer finger using hand landmarks
-    def draw_star(self, image, detection_result):
-        # Get image details
-        imageHeight, imageWidth = image.shape[:2]
-
-        # is the -1 necessary here? what does that do??
-        star = cv2.imread('data/Star.png', -1)
+    def draw_star(self, screen, detection_result):
+        star = pygame.image.load('data/Star.png')
 
         # Get a list of the landmarks
         hand_landmarks_list = detection_result.hand_landmarks
@@ -198,92 +198,94 @@ class Game:
             index_finger = hand_landmarks[HandLandmarkPoints.INDEX_FINGER_TIP.value]
 
             # map the finger coordinates back to screen dimensions 
-            pixelCoord = DrawingUtil._normalized_to_pixel_coordinates(index_finger.x, index_finger.y, imageWidth, imageHeight)
+            pixelCoord = DrawingUtil._normalized_to_pixel_coordinates(index_finger.x, index_finger.y, WIDTH, HEIGHT)
 
-            # here, instead, just return the coordinates, and then use them later to draw the star here w/ pygame 
             if pixelCoord:
                 # draw + center the star at the coordinates of the finger
-                start_x = int(pixelCoord[0] - star.shape[0] / 2) 
-                start_y = int(pixelCoord[1] - star.shape[1] / 2)  
-                end_x = start_x + star.shape[0]
-                end_y = start_y + star.shape[1]
-
-                # debugged with ChatGPT 
-                if start_x >= 0 and start_y >= 0 and end_x <= imageWidth and end_y <= imageHeight:
-                    alpha_s = star[:, :, 3] / 255.0
-                    alpha_l = 1.0 - alpha_s
-
-                # Overlay the star image onto the frame
-                # FOR SOME REASON, THE STAR PRINTS BLUE...
-                for c in range(0, 3):
-                    image[start_y:end_y, start_x:end_x, c] = (alpha_s * star[:, :, c] +
-                                                            alpha_l * image[start_y:end_y, start_x:end_x, c])
+                start_x = int(pixelCoord[0] - star.get_width() / 2) 
+                start_y = int(pixelCoord[1] - star.get_height() / 2)  
+                screen.blit(star, (start_x, start_y))
+                self.star_coor = (start_x + star.get_width() / 2, start_y + star.get_height() / 2)
 
 
-    
+    def find_start_points(self, customer):
+        num_slices = customer.num_slices 
+        slice_angle = math.radians(360 / num_slices)
+        if len(self.starting_points) < 2: 
+            for i in range(num_slices):
+                # the angle at which to draw the slice around the pizza
+                angle = i * slice_angle
+                # represent the coordinates of the new point
+                # Debugged with ChatGPT
+                new_x = int(math.cos(angle) * PIZZA_RADIUS + WIDTH/2)
+                new_y = int(math.sin(angle) * PIZZA_RADIUS + HEIGHT/2)
+                # store the coordinates of the point for future use
+                self.starting_points.append((new_x, new_y))
+            
     def draw_start_points(self):
-        # change the x & y depending on size of window 
-        starting_x = 600
-        starting_y = 500 
-        num_slices = self.customers[0].num_slices 
-        slice_angle = 360 / num_slices
+        for point in self.starting_points:
+            pygame.draw.circle(self.screen, BLACK, (point[0], point[1]), 10)
 
-        pygame.draw.circle()
-        # For now, I can just draw a circle on the center of the screen that acts like the final pizza position 
-        # Depending on the desired # of slices, draw start/end points around the pizza for each slice 
-
-
-        # OR: The starting point can be the right-most point on the pizza. it is always the same:
-        #the center of the screen + the pizza's radius for the x-coordinate 
-
-        
-        for i in range(num_slices):
-            # draw a point 
-            # the angle at which to draw the slice = i * slice_angle 
-            # store the coordinates of the point in the self.starting_points list
-
-            return 
-        return
-    
-    # only call this/ if is_slicing is set to true 
     def draw_line_tracker(self):
         #Draw a line between the start point and the user's current coordinates
-            # just set start x & y to the start point's coordinates
-            # end x & y to the finger's coordinates
-        
-        return 
+        pygame.draw.line(self.screen, BLACK, (self.current_point[0], self.current_point[1]), (self.star_coor[0], self.star_coor[1]), 5)
     
-
-
     # Identifies hand motion/change in the location of the index finger 
-    def check_for_slice(self):
+    def check_is_slicing(self):
         # tallies the slice counter of the current pizza object
     
         # if a user touches one of points
             # AKA: If the coordinates of the user's finger make contact with any of the points around the pizza (which are stored in a list)
                 # then is_slicing is set to True 
                 # set the point that the user has touched to the starting point 
-    
-        for point in self.starting_points: 
-            if _____: 
-                self.is_slicing = True 
-                active_point = point
-    
-    
-        #if one of these contact points 
+        if self.current_point == None and self.is_slicing == False:
+            for point in self.starting_points: 
+                # because a user can't make the same slice twice
+                if self.is_valid_point(point): 
+                    x_check = point[0] - 20 <= self.star_coor[0] and point[0] + 20 >= self.star_coor[0]
+                    y_check = point[1] - 20 <= self.star_coor[1] and point[1] + 20 >= self.star_coor[1]
+                    if (x_check and y_check): 
+                        self.is_slicing = True 
+                        self.current_point = point
 
-        # basically, a slice occurs when a user goes from touching one point to the opposite point 
+    # checks to ensure that the point that the user is touching is not already part of a completed slice
+    def is_valid_point(self, point):
+        for pair in self.complete_slices: 
+            if point in pair:
+                return False
+        return True
+    
+    def check_slice_completed(self):
+    # A slice is completed when the user touches the opposite starting point
+       # Finds the point opposite the current one
+        current_index = self.starting_points.index(self.current_point)
+        num_slices = len(self.starting_points)
+        opp_index = int(current_index + num_slices / 2)
+        if opp_index >= num_slices:
+            opp_index -= num_slices
+        opp_point = self.starting_points[opp_index]
 
-        # maybe the 
-    
-        # if the distance that the user's finger moves before touching the opposite point is greater than the diameter, 
-        # then the setting of actively tracing out a pizza slice is turned off 
+        # checks intersection b/w index finger and the opposite point
+        x_check = opp_point[0] - 20 <= self.star_coor[0] and opp_point[0] + 20 >= self.star_coor[0]
+        y_check = opp_point[1] - 20 <= self.star_coor[1] and opp_point[1] + 20 >= self.star_coor[1]
+        # if the user has completed the slice
+        if (x_check and y_check):
+            # increments slice counter & draw slice
+            self.pizza.slices_complete += 2
+            self.complete_slices.append((self.current_point, opp_point))
+            # reset variables
+            self.is_slicing = False
+            self.current_point = None
+
+    # draws all completed slices on the pizza 
+    def draw_slices(self):
+        for pair in self.complete_slices: 
+            # draw a line between points
+            point1 = pair[0]
+            point2 = pair[1]
+            pygame.draw.line(self.screen, BLACK, (point1[0], point1[1]), (point2[0], point2[1]), 5)
         return
-    
-    # draws a slice on the pizza
-    def draw_slice(self):
-        return
-    
+
     # Main game loop 
     def run(self): 
         """
@@ -308,20 +310,36 @@ class Game:
             to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
             results = self.detector.detect(to_detect)
 
-            # I can delete this line when I switch fully to pygame 
-            # cv2.rectangle(image, (0, 0), (2000, 1200), RED, -1)
-
             self.screen.fill(RED)
 
-            # # draw all customers in current positions
-            # for customer in self.customers:
-            #     customer.appear()
-            #     customer.draw(image)
+            #draw all customers in current positions
+            # actually, shouldn't I just draw the first customer? Then, every 5 seconds, a new one should appear
+            # the time depends on the game difficulty 
+            for customer in self.customers:
+                customer.appear()
+                customer.draw(self.screen)
 
-            # for pizza in self.pizzas:
-            #     pizza.appear()
-            #     pizza.draw(image)
-            # self.draw_star(image, results)
+            # Draw the pizza
+            self.pizza.appear()
+            self.pizza.draw(self.screen)
+
+            if self.pizza.is_on_screen and not self.pizza.is_done:
+                self.draw_start_points()
+
+            self.draw_star(self.screen, results)
+
+            # draw pizza slices
+            if not self.pizza.is_done:
+                self.check_is_slicing()
+                if self.is_slicing:
+                    self.draw_line_tracker()
+                    self.check_slice_completed()
+                self.draw_slices()
+
+            #check if pizza is complete
+            if self.pizza.check_is_done(self.customers[0]):
+                self.pizza.disappear()
+
 
             pygame.display.flip()
 
@@ -329,10 +347,8 @@ class Game:
                 if event.type == pygame.QUIT:
                     running = False
 
-
             # Change the color of the frame back
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            # cv2.imshow('Hand Tracking', image)
 
             # Break the loop if the user presses 'q'
             if cv2.waitKey(50) & 0xFF == ord('q'):
