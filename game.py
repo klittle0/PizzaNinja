@@ -61,17 +61,19 @@ class Customer(pygame.sprite.Sprite):
         if time.time() - self.appear_time < ANIMATION_TIME:
             self.x += 8
             
-    def leave(self):
-        # TODO 
-        disappear_start = time.time()
-        if self.x > -150: 
-            self.x += -2
+    def disappear(self):
+        if self.x > -self.normal_image.get_width(): 
+            self.x -= 8
         ## add code that removes the player from the screen
         return
+    
+    # Makes the customer move forward in line 
+    def move_forward(self):
+        # Basically just slides them up. Changes y coordinate by their height 
+        return 
 
-    def approve_order(self):
-        # TODO 
-        # checks the # of slices made in the pizza to confirm 
+    # Displays the customer's order on the screen
+    def give_order(self):
         return
 
     def is_long_wait(self):
@@ -120,7 +122,7 @@ class Pizza(pygame.sprite.Sprite):
 
         if time.time() - self.appear_time < ANIMATION_TIME and self.y -40 >= self.final_y:
             self.y -= 40
-        else: 
+        elif self.is_done == False: 
             if self.y != self.final_y:
                 self.y = self.final_y
             self.is_on_screen = True
@@ -131,12 +133,9 @@ class Pizza(pygame.sprite.Sprite):
             self.is_done = True
         return self.is_done
 
-    # THIS DOESN'T WORK. THE METHOD IS REACHED, BUT SELF.Y DOESN'T CHANGE!!
     def disappear(self):
-        print("Disappearing")
-        print(self.y)
-        # is this a magic number? do I need to replace? 
-        self.y = 800
+        if self.y + 40 >= -820: 
+            self.y -= 40
 
     def draw(self, screen): 
         if not self.is_done:
@@ -153,9 +152,7 @@ class Game:
         self.difficulty = 1 
         self.score = 0
         self.is_slicing = False
-        # there only needs to be one pizza. As soon as the customer approves the order, the pizza is "boxed", aka it disappears
-        #and the box slides away at the same time as the pizza returns 
-        self.pizza = Pizza()
+        self.pizzas = []
         self.starting_points = []
         self.star_coor = (0, 0)
         self.complete_slices = []
@@ -163,15 +160,18 @@ class Game:
 
         pygame.init()
 
+        # Game starts with 2 pizzas 
+        self.pizzas.append(Pizza())
+        self.pizzas.append(Pizza())
+        self.current_pizza = self.pizzas[0]
+
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption('Pizza Ninja')
 
-        # generate random customer, put them in the list, then as soon as they're off screen, remove them from list. 
+        # Add 1 random customer to the list 
         self.customers = []
         self.customers.append(Customer(self.difficulty))
-
-        #finds the starting points on pizza depending on the current customer
-        self.find_start_points(self.customers[0])
+        self.current_customer = self.customers[0]
 
         # Create the hand detector
         # Sourced from Ms. Namasivayam's code in the finger tracking game 
@@ -216,6 +216,7 @@ class Game:
                 # the angle at which to draw the slice around the pizza
                 angle = i * slice_angle
                 # represent the coordinates of the new point
+                # https://stackoverflow.com/questions/34372480/rotate-point-about-another-point-in-degrees-python
                 # Debugged with ChatGPT
                 new_x = int(math.cos(angle) * PIZZA_RADIUS + WIDTH/2)
                 new_y = int(math.sin(angle) * PIZZA_RADIUS + HEIGHT/2)
@@ -271,7 +272,7 @@ class Game:
         # if the user has completed the slice
         if (x_check and y_check):
             # increments slice counter & draw slice
-            self.pizza.slices_complete += 2
+            self.current_pizza.slices_complete += 2
             self.complete_slices.append((self.current_point, opp_point))
             # reset variables
             self.is_slicing = False
@@ -294,8 +295,6 @@ class Game:
         """  
         running = True  
     
-        # How to do this without actually opening the video? 
-        # I need to add something else here... there should be an "and" statement
         while self.video.isOpened() and running:
             # Get the current frame
             frame = self.video.read()[1]
@@ -312,33 +311,62 @@ class Game:
 
             self.screen.fill(RED)
 
-            #draw all customers in current positions
-            # actually, shouldn't I just draw the first customer? Then, every 5 seconds, a new one should appear
             # the time depends on the game difficulty 
+            # maybe i should have a game method that calculates wait time depending on difficulty 
+            # Finds the starting points on pizza depending on the current customer
+
+            self.find_start_points(self.current_customer)
+
+            # Draws all waiting customers on screen
             for customer in self.customers:
                 customer.appear()
                 customer.draw(self.screen)
+                customer.give_order()
 
-            # Draw the pizza
-            self.pizza.appear()
-            self.pizza.draw(self.screen)
+            # Occasionally adds new customers to the screen 
+            # I need to slow down the rate! 
+            # the speed should depend on the difficulty of the game 
+            # I need to add a clause somewhere that changes the difficulty depending on the # of pizzas that are completed. 
+            if time.time() % 2 <= .1:
+                self.customers.append(Customer(self.screen))
 
-            if self.pizza.is_on_screen and not self.pizza.is_done:
+            # Draw the first pizza in the list 
+            self.current_pizza.appear()
+            self.current_pizza.draw(self.screen)
+
+            if self.current_pizza.is_on_screen and not self.current_pizza.is_done:
                 self.draw_start_points()
 
             self.draw_star(self.screen, results)
 
-            # draw pizza slices
-            if not self.pizza.is_done:
+            # Draw pizza slices as they're being made 
+            if not self.current_pizza.is_done and self.current_pizza.is_on_screen:
                 self.check_is_slicing()
                 if self.is_slicing:
                     self.draw_line_tracker()
                     self.check_slice_completed()
                 self.draw_slices()
 
-            #check if pizza is complete
-            if self.pizza.check_is_done(self.customers[0]):
-                self.pizza.disappear()
+            # Check if pizza is complete
+            if self.current_pizza.check_is_done(self.current_customer):
+                # Makes current pizza + customer disappear
+                self.current_pizza.disappear()
+                self.current_customer.disappear()
+
+                # Removes old pizza and adds new one
+                self.pizzas.remove(self.current_pizza)
+                self.pizzas.append(Pizza())
+                self.current_pizza = self.pizzas[0]
+
+                # Removes old customer and adds new one
+                self.customers.remove(self.current_customer)
+                self.customers.append(Customer(self.difficulty))
+                self.current_customer = self.customers[0]
+
+                # Resets pizza slices 
+                self.complete_slices = []
+                self.starting_points = []
+                
 
 
             pygame.display.flip()
