@@ -34,7 +34,7 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 DrawingUtil = mp.solutions.drawing_utils
 
 class Customer(pygame.sprite.Sprite): 
-    def __init__(self, difficulty):
+    def __init__(self, difficulty, position):
         # is this line necessary? 
         super().__init__()
         self.is_on_screen = False
@@ -50,7 +50,7 @@ class Customer(pygame.sprite.Sprite):
         self.x = -self.normal_image.get_width()
         # the self.y should change depending on the customer's position in line. OR: an integer should be passed into their draw method and they 
         # are drawn at integer * self.y  
-        self.y = 120
+        self.y = 120 * position
         ## The customer needs a couple dif. potential graphics. One for normal mode, another for when they are mad 
 
     ## slides the customer onto screen by shifting x coordinate
@@ -62,6 +62,7 @@ class Customer(pygame.sprite.Sprite):
             self.x += 8
             
     def disappear(self):
+        # This should be a glide, but the character just seems to disappear immediately 
         if self.x > -self.normal_image.get_width(): 
             self.x -= 8
         ## add code that removes the player from the screen
@@ -69,7 +70,8 @@ class Customer(pygame.sprite.Sprite):
     
     # Makes the customer move forward in line 
     def move_forward(self):
-        # Basically just slides them up. Changes y coordinate by their height 
+        # EDIT for more of a glide motion. 
+        self.y -= self.normal_image.get_height()
         return 
 
     # Displays the customer's order on the screen
@@ -157,6 +159,7 @@ class Game:
         self.star_coor = (0, 0)
         self.complete_slices = []
         self.current_point = None
+        self.line_pos = 1
 
         pygame.init()
 
@@ -170,7 +173,8 @@ class Game:
 
         # Add 1 random customer to the list 
         self.customers = []
-        self.customers.append(Customer(self.difficulty))
+        self.customers.append(Customer(self.difficulty, self.line_pos))
+        self.line_pos += 1
         self.current_customer = self.customers[0]
 
         # Create the hand detector
@@ -286,7 +290,17 @@ class Game:
             point2 = pair[1]
             pygame.draw.line(self.screen, BLACK, (point1[0], point1[1]), (point2[0], point2[1]), 5)
         return
-
+    
+    def change_difficulty(self):
+        if self.score > 20:
+            self.difficulty = 5
+        elif self.score > 15:
+            self.difficulty = 4
+        elif self.score > 10:
+            self.difficulty = 3
+        elif self.score > 5:
+            self.difficulty = 2
+    
     # Main game loop 
     def run(self): 
         """
@@ -294,7 +308,10 @@ class Game:
         user presses "q".
         """  
         running = True  
-    
+        # Use this to generate customers
+        start_time = time.time()
+
+            
         while self.video.isOpened() and running:
             # Get the current frame
             frame = self.video.read()[1]
@@ -315,6 +332,8 @@ class Game:
             # maybe i should have a game method that calculates wait time depending on difficulty 
             # Finds the starting points on pizza depending on the current customer
 
+            # Sets the time between customer arrivals 
+            #customer_timer += 1/10
             self.find_start_points(self.current_customer)
 
             # Draws all waiting customers on screen
@@ -322,13 +341,17 @@ class Game:
                 customer.appear()
                 customer.draw(self.screen)
                 customer.give_order()
+            customer_timer = time.time() - start_time
 
             # Occasionally adds new customers to the screen 
-            # I need to slow down the rate! 
             # the speed should depend on the difficulty of the game 
             # I need to add a clause somewhere that changes the difficulty depending on the # of pizzas that are completed. 
-            if time.time() % 2 <= .1:
-                self.customers.append(Customer(self.screen))
+                
+            if customer_timer > (12 - self.difficulty * 2):
+                self.customers.append(Customer(self.difficulty, self.line_pos))
+                self.line_pos += 1
+                # Reset customer timer variables 
+                start_time = time.time()
 
             # Draw the first pizza in the list 
             self.current_pizza.appear()
@@ -349,25 +372,43 @@ class Game:
 
             # Check if pizza is complete
             if self.current_pizza.check_is_done(self.current_customer):
+                self.score += 1
+                # This line should be displayed on the screen somewhere!
+                print(self.score)
+
                 # Makes current pizza + customer disappear
                 self.current_pizza.disappear()
                 self.current_customer.disappear()
+
+                # Removes old customer and adds new one 
+                # This is not allowing the customer to disappear from screen! They are removed from this list, so they pop off immediately!!
+                # I need to only remove the current customer if it is OFF the screen
+                self.customers.remove(self.current_customer)
+                if len(self.customers) <= 1: 
+                    self.customers.append(Customer(self.difficulty, self.line_pos))
+                    #self.line_pos -= 1
+                     # Reset customer timer variables 
+                    start_time = time.time()
+                self.current_customer = self.customers[0]
 
                 # Removes old pizza and adds new one
                 self.pizzas.remove(self.current_pizza)
                 self.pizzas.append(Pizza())
                 self.current_pizza = self.pizzas[0]
 
-                # Removes old customer and adds new one
-                self.customers.remove(self.current_customer)
-                self.customers.append(Customer(self.difficulty))
-                self.current_customer = self.customers[0]
+                # Moves all customers forward in line
+                if not self.current_customer.y - 120 <= 0: 
+                    for customer in self.customers:
+                        customer.move_forward()
+                    self.line_pos -= 1
 
                 # Resets pizza slices 
                 self.complete_slices = []
                 self.starting_points = []
-                
 
+            self.change_difficulty()
+
+            print("Number of customers: ", len(self.customers))
 
             pygame.display.flip()
 
@@ -380,7 +421,6 @@ class Game:
 
             # Break the loop if the user presses 'q'
             if cv2.waitKey(50) & 0xFF == ord('q'):
-                print(self.score)
                 break
 
         self.video.release()
