@@ -74,7 +74,7 @@ class Customer(pygame.sprite.Sprite):
     # Makes the customer move forward in line 
     def move_forward(self):
         # EDIT for more of a glide motion. 
-        self.y -=3
+        self.y -=8
     
     # Displays the customer's order on the screen
     def give_order(self, screen):
@@ -170,6 +170,7 @@ class Game:
         self.difficulty = 1 
         self.score = 0
         self.is_slicing = False
+        self.is_moving = False
         self.pizzas = []
         self.starting_points = []
         self.cutter_coor = (0, 0)
@@ -200,7 +201,7 @@ class Game:
         self.detector = HandLandmarker.create_from_options(options)
 
         # Load video
-        self.video = cv2.VideoCapture(1)
+        self.video = cv2.VideoCapture(0)
 
     # Draw a pizza cutter on the pointer finger using hand landmarks
     def draw_cutter(self, screen, detection_result):
@@ -314,24 +315,6 @@ class Game:
         elif self.score > 5:
             self.difficulty = 2
 
-    # Updates the positions of all customers
-    def update_positions(self):
-        for customer in self.finished_customers:
-            customer.disappear()
-            customer.draw(self.screen)
-            customer.give_order(self.screen)
-        
-        # Moves all customers forward in line
-        # This probably takes way too long... how else can I do this?
-        while self.customers[0].y > 68: 
-            for customer in self.customers:
-                customer.move_forward()
-
-        # Remove finished customers who have moved off the screen
-        # Sourced from ChatGPT
-        #self.finished_customers = [customer for customer in self.finished_customers if customer.y <= -customer.normal_image.get_height()]
-
-
     
     # Main game loop 
     def run(self): 
@@ -429,15 +412,18 @@ class Game:
                 self.pizzas.append(Pizza())
                 self.current_pizza = self.pizzas[0]
 
-                # Moves all customers forward in line
-                # This works! All customers move, although, it's a litle fast. 
-                while self.customers[0].y > 68: 
-                    for customer in self.customers:
-                        customer.move_forward()
-
                 # Resets pizza slices 
                 self.complete_slices = []
                 self.starting_points = []
+
+                self.is_moving = True
+
+            # Moves all existing customers forward in line
+            if self.customers[0].y > 68: 
+                for customer in self.customers:
+                    customer.move_forward()
+            if self.customers[0].y <= 68:
+                self.is_moving = False
 
             # Draws customers until they are off screen
             for customer in self.finished_customers:
@@ -445,8 +431,6 @@ class Game:
                 customer.disappear()
                 customer.give_order(self.screen)
                 customer.draw(self.screen)
-
-                    
 
 
 
