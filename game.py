@@ -20,6 +20,7 @@ import pygame
 
 RED = (255, 0, 0)
 BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
 ANIMATION_TIME = 2
 WIDTH = 1200
 HEIGHT = 800
@@ -67,14 +68,9 @@ class Customer(pygame.sprite.Sprite):
                 self.x = self.final_x
 
     # Slides the customer off screen 
-    def disappear(self):
+    def move_up(self):
         if self.y > -self.normal_image.get_height(): 
             self.y -= 8
-    
-    # Makes the customer move forward in line 
-    def move_forward(self):
-        # EDIT for more of a glide motion. 
-        self.y -=8
     
     # Displays the customer's order on the screen
     def give_order(self, screen):
@@ -176,6 +172,8 @@ class Game:
         self.cutter_coor = (0, 0)
         self.complete_slices = []
         self.current_point = None
+        self.background = pygame.image.load('data/background.jpg')
+        self.chef = pygame.image.load('data/chef.png')
 
         pygame.init()
 
@@ -201,7 +199,7 @@ class Game:
         self.detector = HandLandmarker.create_from_options(options)
 
         # Load video
-        self.video = cv2.VideoCapture(0)
+        self.video = cv2.VideoCapture(1)
 
     # Draw a pizza cutter on the pointer finger using hand landmarks
     def draw_cutter(self, screen, detection_result):
@@ -315,7 +313,41 @@ class Game:
         elif self.score > 5:
             self.difficulty = 2
 
-    
+    def update_positions(self):
+        # Moves all existing customers forward in line
+            if self.customers[0].y > 68: 
+                for customer in self.customers:
+                    customer.move_up()
+            if self.customers[0].y <= 68:
+                self.is_moving = False
+
+            # Moves customers w/ completed orders off screen
+            for customer in self.finished_customers:
+                customer.move_up()
+                customer.give_order(self.screen)
+                customer.draw(self.screen)
+
+    def print_score(self):
+        width = 150 
+        height = 76
+        message = "Score: " + str(self.score)
+        pygame.draw.rect(self.screen, WHITE, pygame.Rect(WIDTH - width, 0, width, height))
+
+        # Print score text
+        font = pygame.font.Font(None, 24)  # Choose your font and font size
+        text = font.render(message, True, BLACK)
+
+        # Finds position to display the text in speech bubble
+
+        ## Change this to go in the right position. reference how I printed the orders.
+        text_rect = text.get_rect((1000, 500))
+
+        # Displays bubble + text to the screen
+        self.screen.blit(self.bubble, (x, y))
+        self.screen.blit(text, text_rect)
+
+
+
     # Main game loop 
     def run(self): 
         """
@@ -340,7 +372,9 @@ class Game:
             to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
             results = self.detector.detect(to_detect)
 
-            self.screen.fill(RED)
+            self.screen.blit(self.background, (0, 0))
+            self.screen.blit(self.chef, (WIDTH / 2 + 200, 30))
+            self.print_score()
              
             # Finds the starting points on pizza depending on the current customer
             self.find_start_points(self.current_customer)
@@ -418,19 +452,8 @@ class Game:
 
                 self.is_moving = True
 
-            # Moves all existing customers forward in line
-            if self.customers[0].y > 68: 
-                for customer in self.customers:
-                    customer.move_forward()
-            if self.customers[0].y <= 68:
-                self.is_moving = False
-
-            # Draws customers until they are off screen
-            for customer in self.finished_customers:
-                # The customers don't actually get time to disappear...they basically are only drawn 
-                customer.disappear()
-                customer.give_order(self.screen)
-                customer.draw(self.screen)
+            # Move customers forward (either up in line or off screen)
+            self.update_positions()
 
 
 
