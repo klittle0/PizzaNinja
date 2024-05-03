@@ -199,7 +199,7 @@ class Game:
         self.detector = HandLandmarker.create_from_options(options)
 
         # Load video
-        self.video = cv2.VideoCapture(1)
+        self.video = cv2.VideoCapture(0)
 
     # Draw a pizza cutter on the pointer finger using hand landmarks
     def draw_cutter(self, screen, detection_result):
@@ -337,15 +337,13 @@ class Game:
         font = pygame.font.Font(None, 24)  # Choose your font and font size
         text = font.render(message, True, BLACK)
 
-        # Finds position to display the text in speech bubble
 
-        ## Change this to go in the right position. reference how I printed the orders.
-        text_rect = text.get_rect((1000, 500))
+        # Calculate the center of the rectangle 
+        text_rect = text.get_rect()
+        text_rect.center = (WIDTH - width // 2, height // 2)
 
         # Displays bubble + text to the screen
-        self.screen.blit(self.bubble, (x, y))
         self.screen.blit(text, text_rect)
-
 
 
     # Main game loop 
@@ -392,7 +390,7 @@ class Game:
             if customer_timer > (12 - self.difficulty * 2):
                 # Creates a customer based on the previous customer's y position 
                 if len(self.customers) >= 1: 
-                    self.customers.append(Customer(self.difficulty, self.customers[-1].y + 70))
+                    self.customers.append(Customer(self.difficulty, self.customers[-1].y + 80))
                 else: 
                     self.customers.append(Customer(self.difficulty, -60))
                 # Reset customer timer variables 
@@ -418,8 +416,6 @@ class Game:
             # Check if pizza is complete
             if self.current_pizza.check_is_done(self.current_customer):
                 self.score += 1
-                # This line should be displayed on the screen somewhere!
-                print("score: ", self.score)
 
                 # Makes current pizza disappear
                 self.current_pizza.disappear()
@@ -434,7 +430,7 @@ class Game:
                 if len(self.customers) <= 1: 
                     # Creates a customer based on the previous customer's y position 
                     if len(self.customers) == 1: 
-                        self.customers.append(Customer(self.difficulty, self.customers[-1].y + 70))
+                        self.customers.append(Customer(self.difficulty, self.customers[-1].y + 80))
                     else: 
                         self.customers.append(Customer(self.difficulty, -60))
                      # Reset customer timer variables 
