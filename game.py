@@ -1,8 +1,9 @@
 """ 
-A version of fruit ninja that uses machine learning.
+Fruit ninja but with pizzas that uses machine learning.
 
 @author: Kate Little
-@version: April 2024
+@version: May 2024
+Note: exerpts of this code have been sourced from previous class projects, written by Ms. Namasivayam, and/or debugged using ChatGPT
 """
 
 import mediapipe as mp
@@ -14,9 +15,6 @@ import time
 import math
 import pygame 
 
-
-# GO THROUGH AND ADD PYGAME 
-# GENERATE A WINDOW
 
 RED = (255, 0, 0)
 BLACK = (0, 0, 0)
@@ -34,29 +32,23 @@ HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 DrawingUtil = mp.solutions.drawing_utils
 
+# Class for customer objects 
 class Customer(pygame.sprite.Sprite): 
     def __init__(self, difficulty, prev_customer_y):
-        # is this line necessary? 
         super().__init__()
         self.is_on_screen = False
         self.num_slices = random.randint(1, 4) * 2
-        # the instant when the customer is created
         self.appear_time = None
-        # When the customer has been waiting a long time, set to true. 
-        self.is_mad = False
         self.is_done = False
         self.difficulty = difficulty
-        # CHANGE THIS to be neg SO THE character spawns off screen 
-        # IS THIS POSSIBLE? 
         self.normal_image = pygame.image.load('data/character.png')
         self.bubble = pygame.image.load('data/speech_bubble.png')
         self.x = -self.normal_image.get_width()
         self.final_x = self.normal_image.get_width() - 15
         # Customer's position is dependent on their position in line 
         self.y = prev_customer_y + 120
-        ## The customer needs a couple dif. potential graphics. One for normal mode, another for when they are mad 
 
-    ## slides the customer onto screen by shifting x coordinate
+    # Slides the customer onto screen by shifting x coordinate
     def appear(self): 
         if self.appear_time == None: 
             self.appear_time = time.time()
@@ -78,7 +70,7 @@ class Customer(pygame.sprite.Sprite):
         y = self.y - 20
         bubble_rect = self.bubble.get_rect(topleft=(x, y))
 
-        # Convert the integer num_slices to a string
+        # Converts the integer num_slices to a string
         message = str(self.num_slices) + " slices!"
 
         font = pygame.font.Font(None, 24)  # Choose your font and font size
@@ -91,34 +83,12 @@ class Customer(pygame.sprite.Sprite):
         screen.blit(self.bubble, (x, y))
         screen.blit(text, text_rect)
 
-
-    def is_long_wait(self):
-        # Depending on the game difficulty, a long wait is characterized differently 
-        if self.difficulty == 1: 
-            thres = 12
-        elif self.difficulty == 2: 
-            thres = 9
-        elif self.difficulty == 3: 
-            thres = 6
-        elif self.difficulty == 4: 
-            thres = 4
-        elif self.difficulty == 5: 
-            thres = 2
-
-        if time.time() - self.appear_time > thres: 
-            self.is_mad = True
-
     def draw(self, screen):
-        if self.is_mad: 
-            # adjust for mad image
-            screen.blit(self.normal_image, (self.x, self.y))
-        else: 
-            screen.blit(self.normal_image, (self.x, self.y))
+        screen.blit(self.normal_image, (self.x, self.y))
     
-
+# Class for pizza objects
 class Pizza(pygame.sprite.Sprite): 
     def __init__(self): 
-        # is this line necessary? 
         super().__init__()
         self.pizza_image = pygame.image.load('data/pizza.png')
         self.box_image = pygame.image.load('data/pizza_box.png')
@@ -130,6 +100,7 @@ class Pizza(pygame.sprite.Sprite):
         self.appear_time = None
         self.is_done = False
 
+    # Slides the pizza up onto the screen
     def appear(self): 
         if self.appear_time == None: 
             self.appear_time = time.time()
@@ -147,8 +118,9 @@ class Pizza(pygame.sprite.Sprite):
             self.is_done = True
         return self.is_done
 
+    # Slides pizza up off screen 
     def disappear(self):
-        if self.y + 40 >= -820: 
+        if self.y + 40 >= -self.pizza_image.get_height(): 
             self.y -= 40
 
     def draw(self, screen): 
@@ -159,8 +131,6 @@ class Pizza(pygame.sprite.Sprite):
             screen.blit(self.box_image, (self.x, self.y))
 
 
-
-
 class Game: 
     def __init__(self):
         self.difficulty = 1 
@@ -168,6 +138,7 @@ class Game:
         self.is_slicing = False
         self.is_moving = False
         self.pizzas = []
+        self.finished_pizzas = []
         self.starting_points = []
         self.cutter_coor = (0, 0)
         self.complete_slices = []
@@ -185,79 +156,77 @@ class Game:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption('Pizza Ninja')
 
-        # Add 1 random customer to the list 
+        # Adds 1 customer to the list 
         self.customers = []
         self.customers.append(Customer(self.difficulty, -60))
         self.current_customer = self.customers[0]
         self.finished_customers = []
 
-        # Create the hand detector
+        # Creates the hand detector
         # Sourced from Ms. Namasivayam's code in the finger tracking game 
         base_options = BaseOptions(model_asset_path='data/hand_landmarker.task')
         options = HandLandmarkerOptions(base_options=base_options,
                                                 num_hands=2)
         self.detector = HandLandmarker.create_from_options(options)
 
-        # Load video
-        self.video = cv2.VideoCapture(0)
+        # Loads video
+        self.video = cv2.VideoCapture(1)
 
-    # Draw a pizza cutter on the pointer finger using hand landmarks
+    # Draws a pizza cutter on the pointer finger using hand landmarks
     def draw_cutter(self, screen, detection_result):
         cutter = pygame.image.load('data/cutter.png')
 
-        # Get a list of the landmarks
+        # Gets a list of the landmarks
         hand_landmarks_list = detection_result.hand_landmarks
         
-        # Loop through the detected hands to visualize each landmark 
+        # Loosp through the detected hands to visualize each landmark 
         for idx in range(len(hand_landmarks_list)):
             hand_landmarks = hand_landmarks_list[idx]
 
-            # get coordinates of just the index finger
+            # Gets coordinates of just the index finger
             index_finger = hand_landmarks[HandLandmarkPoints.INDEX_FINGER_TIP.value]
 
-            # map the finger coordinates back to screen dimensions 
+            # Maps the finger coordinates back to screen dimensions 
             pixelCoord = DrawingUtil._normalized_to_pixel_coordinates(index_finger.x, index_finger.y, WIDTH, HEIGHT)
 
             if pixelCoord:
-                # draw + center the pizza cutter at the coordinates of the finger
+                # Draws + centers the pizza cutter at the coordinates of the finger
                 start_x = int(pixelCoord[0] - cutter.get_width() / 2) 
                 start_y = int(pixelCoord[1] - cutter.get_height() / 2)  
                 screen.blit(cutter, (start_x, start_y))
                 self.cutter_coor = (start_x + cutter.get_width() / 2, start_y + cutter.get_height() / 2)
 
-
+    # Finds points around the pizza where the user can cut to make slices
     def find_start_points(self, customer):
         num_slices = customer.num_slices 
         slice_angle = math.radians(360 / num_slices)
         if len(self.starting_points) < 2: 
             for i in range(num_slices):
-                # the angle at which to draw the slice around the pizza
+                # The angle at which to draw the slice around the pizza
                 angle = i * slice_angle
-                # represent the coordinates of the new point
+                # Finds the coordinates of new point
                 # https://stackoverflow.com/questions/34372480/rotate-point-about-another-point-in-degrees-python
                 # Debugged with ChatGPT
                 new_x = int(math.cos(angle) * PIZZA_RADIUS + WIDTH/2)
                 new_y = int(math.sin(angle) * PIZZA_RADIUS + HEIGHT/2)
-                # store the coordinates of the point for future use
+                # Store the coordinates of the point for future use
                 self.starting_points.append((new_x, new_y))
-            
+    
+    # Draws points around pizza where the user can make slices 
     def draw_start_points(self):
         for point in self.starting_points:
             pygame.draw.circle(self.screen, BLACK, (point[0], point[1]), 10)
 
+    # Draws a line between the start point and the user's current coordinates
     def draw_line_tracker(self):
-        #Draw a line between the start point and the user's current coordinates
         pygame.draw.line(self.screen, BLACK, (self.current_point[0], self.current_point[1]), (self.cutter_coor[0], self.cutter_coor[1]), 5)
     
     # Identifies hand motion/change in the location of the index finger 
     def check_is_slicing(self):
-        # if a user touches one of points
-            # AKA: If the coordinates of the user's finger make contact with any of the points around the pizza (which are stored in a list)
-                # then is_slicing is set to True 
-                # set the point that the user has touched to the starting point 
+        # If a user touches one of points:
         if self.current_point == None and self.is_slicing == False:
             for point in self.starting_points: 
-                # because a user can't make the same slice twice
+                # Checks to see if it's valid because a user can't make the same slice twice
                 if self.is_valid_point(point): 
                     x_check = point[0] - 20 <= self.cutter_coor[0] and point[0] + 20 >= self.cutter_coor[0]
                     y_check = point[1] - 20 <= self.cutter_coor[1] and point[1] + 20 >= self.cutter_coor[1]
@@ -265,7 +234,7 @@ class Game:
                         self.is_slicing = True 
                         self.current_point = point
 
-    # checks to ensure that the point that the user is touching is not already part of a completed slice
+    # Checks to ensure that the point that the user is touching is not already part of a completed slice
     def is_valid_point(self, point):
         for pair in self.complete_slices: 
             if point in pair:
@@ -282,27 +251,28 @@ class Game:
             opp_index -= num_slices
         opp_point = self.starting_points[opp_index]
 
-        # checks intersection b/w index finger and the opposite point
+        # Checks intersection b/w index finger and the opposite point
         x_check = opp_point[0] - 20 <= self.cutter_coor[0] and opp_point[0] + 20 >= self.cutter_coor[0]
         y_check = opp_point[1] - 20 <= self.cutter_coor[1] and opp_point[1] + 20 >= self.cutter_coor[1]
-        # if the user has completed the slice
+        # If the user has completed the slice
         if (x_check and y_check):
-            # increments slice counter & draw slice
+            # Increments slice counter & draws slice
             self.current_pizza.slices_complete += 2
             self.complete_slices.append((self.current_point, opp_point))
-            # reset variables
+            # Resets variables
             self.is_slicing = False
             self.current_point = None
 
-    # draws all completed slices on the pizza 
+    # Draws all completed slices on the pizza 
     def draw_slices(self):
         for pair in self.complete_slices: 
-            # draw a line between points
+            # Draws a line between points
             point1 = pair[0]
             point2 = pair[1]
             pygame.draw.line(self.screen, BLACK, (point1[0], point1[1]), (point2[0], point2[1]), 5)
         return
     
+    # Changes game difficulty depending on # of pizzas completed
     def change_difficulty(self):
         if self.score > 20:
             self.difficulty = 5
@@ -313,8 +283,9 @@ class Game:
         elif self.score > 5:
             self.difficulty = 2
 
+    # Updates coordinates of all customers
     def update_positions(self):
-        # Moves all existing customers forward in line
+            # Moves all current customers forward in line
             if self.customers[0].y > 68: 
                 for customer in self.customers:
                     customer.move_up()
@@ -327,18 +298,18 @@ class Game:
                 customer.give_order(self.screen)
                 customer.draw(self.screen)
 
+    # Displays # of completed pizzas in top right corner
     def print_score(self):
         width = 150 
         height = 76
         message = "Score: " + str(self.score)
         pygame.draw.rect(self.screen, WHITE, pygame.Rect(WIDTH - width, 0, width, height))
 
-        # Print score text
+        # Prints score text
         font = pygame.font.Font(None, 24)  # Choose your font and font size
         text = font.render(message, True, BLACK)
 
-
-        # Calculate the center of the rectangle 
+        # Calculates the center of the rectangle 
         text_rect = text.get_rect()
         text_rect.center = (WIDTH - width // 2, height // 2)
 
@@ -353,20 +324,21 @@ class Game:
         user presses "q".
         """  
         running = True  
-        # Use this to generate customers
+        # Used to generate customers
         start_time = time.time()
             
+        # Sourced from Ms. Namasivayam's code in the finger-tracking game 
         while self.video.isOpened() and running:
-            # Get the current frame
+            # Gets the current frame
             frame = self.video.read()[1]
 
-            # Convert it to an RGB image
+            # Converts it to an RGB image
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # the image comes mirrored - flip it 
+            # The image comes mirrored - flip it 
             image = cv2.flip(image, 1)
 
-            # Convert the image to a readable format and find the hands
+            # Converts the image to a readable format and find the hands
             to_detect = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
             results = self.detector.detect(to_detect)
 
@@ -386,7 +358,6 @@ class Game:
 
             # Adds new customers to the screen 
             # The rate depends on the difficulty of the game 
-            # High difficuly = high rate 
             if customer_timer > (12 - self.difficulty * 2):
                 # Creates a customer based on the previous customer's y position 
                 if len(self.customers) >= 1: 
@@ -396,7 +367,7 @@ class Game:
                 # Reset customer timer variables 
                 start_time = time.time()
 
-            # Draw the first pizza in the list 
+            # Draws the first pizza in the list 
             self.current_pizza.appear()
             self.current_pizza.draw(self.screen)
 
@@ -405,7 +376,7 @@ class Game:
 
             self.draw_cutter(self.screen, results)
 
-            # Draw pizza slices as they're being made 
+            # Draws pizza slices as they're being made 
             if not self.current_pizza.is_done and self.current_pizza.is_on_screen:
                 self.check_is_slicing()
                 if self.is_slicing:
@@ -413,16 +384,11 @@ class Game:
                     self.check_slice_completed()
                 self.draw_slices()
 
-            # Check if pizza is complete
+            # If pizza slices are complete, does the following: 
             if self.current_pizza.check_is_done(self.current_customer):
                 self.score += 1
 
-                # Makes current pizza disappear
-                self.current_pizza.disappear()
-
                 # Removes old customer and adds new one 
-                # This is not allowing the customer to disappear from screen! They are removed from this list, so they pop off immediately!!
-                # I need to only remove the current customer if it is OFF the screen
                 self.finished_customers.append(self.current_customer)
                 self.customers.remove(self.current_customer)
                 self.current_customer.is_done = True 
@@ -433,11 +399,12 @@ class Game:
                         self.customers.append(Customer(self.difficulty, self.customers[-1].y + 80))
                     else: 
                         self.customers.append(Customer(self.difficulty, -60))
-                     # Reset customer timer variables 
+                     # Resets customer timer variables 
                     start_time = time.time()
                 self.current_customer = self.customers[0]
 
                 # Removes old pizza and adds new one
+                self.finished_pizzas.append(self.current_pizza)
                 self.pizzas.remove(self.current_pizza)
                 self.pizzas.append(Pizza())
                 self.current_pizza = self.pizzas[0]
@@ -448,10 +415,13 @@ class Game:
 
                 self.is_moving = True
 
-            # Move customers forward (either up in line or off screen)
+            # Moves customers forward (either up in line or off screen)
             self.update_positions()
 
-
+            # Moves old pizza off screen
+            for pizza in self.finished_pizzas: 
+                pizza.disappear()
+                pizza.draw(self.screen)
 
             self.change_difficulty()
 
@@ -461,10 +431,7 @@ class Game:
                 if event.type == pygame.QUIT:
                     running = False
 
-            # Change the color of the frame back
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-            # Break the loop if the user presses 'q'
+            # Breaks the loop if the user presses 'q'
             if cv2.waitKey(50) & 0xFF == ord('q'):
                 break
 
